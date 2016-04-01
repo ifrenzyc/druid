@@ -19,25 +19,20 @@ import com.alibaba.druid.sql.ast.SQLName;
 import com.alibaba.druid.sql.ast.SQLSetQuantifier;
 import com.alibaba.druid.sql.ast.SQLStatement;
 import com.alibaba.druid.sql.ast.statement.SQLAssignItem;
+import com.alibaba.druid.sql.ast.statement.SQLBlockStatement;
 import com.alibaba.druid.sql.ast.statement.SQLColumnConstraint;
 import com.alibaba.druid.sql.ast.statement.SQLColumnDefinition;
 import com.alibaba.druid.sql.ast.statement.SQLExprTableSource;
 import com.alibaba.druid.sql.ast.statement.SQLGrantStatement;
-import com.alibaba.druid.sql.dialect.sqlserver.ast.SQLServerColumnDefinition;
-import com.alibaba.druid.sql.dialect.sqlserver.ast.SQLServerColumnDefinition.Identity;
-import com.alibaba.druid.sql.dialect.sqlserver.ast.SQLServerDeclareItem;
 import com.alibaba.druid.sql.dialect.sqlserver.ast.SQLServerOutput;
 import com.alibaba.druid.sql.dialect.sqlserver.ast.SQLServerSelect;
 import com.alibaba.druid.sql.dialect.sqlserver.ast.SQLServerSelectQueryBlock;
 import com.alibaba.druid.sql.dialect.sqlserver.ast.SQLServerTop;
 import com.alibaba.druid.sql.dialect.sqlserver.ast.expr.SQLServerObjectReferenceExpr;
-import com.alibaba.druid.sql.dialect.sqlserver.ast.stmt.SQLServerBlockStatement;
 import com.alibaba.druid.sql.dialect.sqlserver.ast.stmt.SQLServerCommitStatement;
 import com.alibaba.druid.sql.dialect.sqlserver.ast.stmt.SQLServerDeclareStatement;
 import com.alibaba.druid.sql.dialect.sqlserver.ast.stmt.SQLServerExecStatement;
 import com.alibaba.druid.sql.dialect.sqlserver.ast.stmt.SQLServerExecStatement.SQLServerParameter;
-import com.alibaba.druid.sql.dialect.sqlserver.ast.stmt.SQLServerIfStatement;
-import com.alibaba.druid.sql.dialect.sqlserver.ast.stmt.SQLServerIfStatement.Else;
 import com.alibaba.druid.sql.dialect.sqlserver.ast.stmt.SQLServerInsertStatement;
 import com.alibaba.druid.sql.dialect.sqlserver.ast.stmt.SQLServerRollbackStatement;
 import com.alibaba.druid.sql.dialect.sqlserver.ast.stmt.SQLServerSetStatement;
@@ -278,22 +273,7 @@ public class SQLServerOutputVisitor extends SQLASTOutputVisitor implements SQLSe
     }
 
     @Override
-    public boolean visit(Identity x) {
-        print0(ucase ? "IDENTITY (" : "identity (");
-        print(x.getSeed());
-        print0(", ");
-        print(x.getIncrement());
-        print(')');
-        return false;
-    }
-
-    @Override
-    public void endVisit(Identity x) {
-
-    }
-
-    @Override
-    public boolean visit(SQLServerColumnDefinition x) {
+    public boolean visit(SQLColumnDefinition x) {
         x.getName().accept(this);
 
         if (x.getDataType() != null) {
@@ -322,18 +302,6 @@ public class SQLServerOutputVisitor extends SQLASTOutputVisitor implements SQLSe
         }
 
         return false;
-    }
-
-    @Override
-    public void endVisit(SQLServerColumnDefinition x) {
-
-    }
-
-    public boolean visit(SQLColumnDefinition x) {
-        if (x instanceof SQLServerColumnDefinition) {
-            return visit((SQLServerColumnDefinition) x);
-        }
-        return super.visit(x);
     }
 
     @Override
@@ -432,48 +400,6 @@ public class SQLServerOutputVisitor extends SQLASTOutputVisitor implements SQLSe
     }
 
     @Override
-    public boolean visit(SQLServerDeclareItem x) {
-        x.getName().accept(this);
-        
-        if(x.getType() == SQLServerDeclareItem.Type.TABLE) {
-            print0(ucase ? " TABLE" : " table");
-            int size = x.getTableElementList().size();
-
-            if (size > 0) {
-                print0(" (");
-                incrementIndent();
-                println();
-                for (int i = 0; i < size; ++i) {
-                    if (i != 0) {
-                        print(',');
-                        println();
-                    }
-                    x.getTableElementList().get(i).accept(this);
-                }
-                decrementIndent();
-                println();
-                print(')');
-            }
-        } else if (x.getType() == SQLServerDeclareItem.Type.CURSOR) {
-            print0(ucase ? " CURSOR" : " cursor");
-        } else {
-            print(' ');
-            x.getDataType().accept(this);
-            if (x.getValue() != null) {
-                print0(" = ");
-                x.getValue().accept(this);
-            }
-        }
-        
-        return false;
-    }
-
-    @Override
-    public void endVisit(SQLServerDeclareItem x) {
-        
-    }
-
-    @Override
     public boolean visit(SQLServerDeclareStatement x) {
         print0(ucase ? "DECLARE " : "declare ");
         this.printAndAccept(x.getItems(), ", ");
@@ -486,59 +412,7 @@ public class SQLServerOutputVisitor extends SQLASTOutputVisitor implements SQLSe
     }
 
     @Override
-    public boolean visit(Else x) {
-        print0(ucase ? "ELSE" : "else");
-        incrementIndent();
-        println();
-
-        for (int i = 0, size = x.getStatements().size(); i < size; ++i) {
-            if (i != 0) {
-                println();
-            }
-            SQLStatement item = x.getStatements().get(i);
-            item.setParent(x);
-            item.accept(this);
-        }
-
-        decrementIndent();
-        return false;
-    }
-
-    @Override
-    public void endVisit(Else x) {
-
-    }
-
-    @Override
-    public boolean visit(SQLServerIfStatement x) {
-        print0(ucase ? "IF " : "if ");
-        x.getCondition().accept(this);
-        incrementIndent();
-        println();
-        for (int i = 0, size = x.getStatements().size(); i < size; ++i) {
-            SQLStatement item = x.getStatements().get(i);
-            item.setParent(x);
-            item.accept(this);
-            if (i != size - 1) {
-                println();
-            }
-        }
-        decrementIndent();
-
-        if (x.getElseItem() != null) {
-            println();
-            x.getElseItem().accept(this);
-        }
-        return false;
-    }
-
-    @Override
-    public void endVisit(SQLServerIfStatement x) {
-
-    }
-
-    @Override
-    public boolean visit(SQLServerBlockStatement x) {
+    public boolean visit(SQLBlockStatement x) {
         print0(ucase ? "BEGIN" : "begin");
         incrementIndent();
         println();
@@ -557,11 +431,6 @@ public class SQLServerOutputVisitor extends SQLASTOutputVisitor implements SQLSe
         return false;
     }
 
-    @Override
-    public void endVisit(SQLServerBlockStatement x) {
-
-    }
-    
     @Override
     protected void printGrantOn(SQLGrantStatement x) {
         if (x.getOn() != null) {

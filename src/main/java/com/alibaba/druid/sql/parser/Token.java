@@ -18,8 +18,7 @@ package com.alibaba.druid.sql.parser;
 /**
  * 
  * SQL Token 
- * @author wenshao 2011-5-18 下午05:16:49
- * @formatter:off
+ * @author wenshao [szujobs@hotmail.com]
  */
 public enum Token {
     SELECT("SELECT"), 
@@ -262,6 +261,16 @@ public enum Token {
     PARTITION,
     PARTITIONED,
     OVERWRITE,
+    
+    // Teradata
+    SEL("SEL"),
+    LOCKING("LOCKING"),
+    ACCESS("ACCESS"),
+    VOLATILE("VOLATILE"),
+    MULTISET("MULTISET"),
+    POSITION("POSITION"),
+    RANGE_N("RANGE_N"),
+    FORMAT("FORMAT"),
 
     LPAREN("("), 
     RPAREN(")"), 

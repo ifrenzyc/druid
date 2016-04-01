@@ -46,6 +46,8 @@ import com.alibaba.druid.sql.dialect.postgresql.visitor.PGOutputVisitor;
 import com.alibaba.druid.sql.dialect.postgresql.visitor.PGSchemaStatVisitor;
 import com.alibaba.druid.sql.dialect.sqlserver.visitor.SQLServerOutputVisitor;
 import com.alibaba.druid.sql.dialect.sqlserver.visitor.SQLServerSchemaStatVisitor;
+import com.alibaba.druid.sql.dialect.teradata.visitor.TeradataOutputVisitor;
+import com.alibaba.druid.sql.dialect.teradata.visitor.TeradataSchemaStatVisitor;
 import com.alibaba.druid.sql.parser.ParserException;
 import com.alibaba.druid.sql.parser.SQLExprParser;
 import com.alibaba.druid.sql.parser.SQLParserUtils;
@@ -56,7 +58,6 @@ import com.alibaba.druid.sql.visitor.SchemaStatVisitor;
 import com.alibaba.druid.support.logging.Log;
 import com.alibaba.druid.support.logging.LogFactory;
 import com.alibaba.druid.util.JdbcConstants;
-import com.alibaba.druid.util.JdbcUtils;
 import com.alibaba.druid.util.StringUtils;
 
 public class SQLUtils {
@@ -66,29 +67,22 @@ public class SQLUtils {
     private final static Log LOG = LogFactory.getLog(SQLUtils.class);
 
     public static String toSQLString(SQLObject sqlObject, String dbType) {
-        if (JdbcUtils.MYSQL.equals(dbType) || //
-            JdbcUtils.MARIADB.equals(dbType) || //
-            JdbcUtils.H2.equals(dbType)) {
-            return toMySqlString(sqlObject);
+        return toSQLString(sqlObject, dbType, null);
+    }
+    
+    public static String toSQLString(SQLObject sqlObject, String dbType, FormatOption option) {
+        StringBuilder out = new StringBuilder();
+        SQLASTOutputVisitor visitor = createOutputVisitor(out, dbType);
+        
+        if (option == null) {
+            option = DEFAULT_FORMAT_OPTION;
         }
+        visitor.setUppCase(option.isUppCase());
+        
+        sqlObject.accept(visitor);
 
-        if (JdbcUtils.ORACLE.equals(dbType) || JdbcUtils.ALI_ORACLE.equals(dbType)) {
-            return toOracleString(sqlObject);
-        }
-
-        if (JdbcUtils.POSTGRESQL.equals(dbType)) {
-            return toPGString(sqlObject);
-        }
-
-        if (JdbcUtils.DB2.equals(dbType)) {
-            return toDB2String(sqlObject);
-        }
-
-        if (JdbcUtils.ODPS.equals(dbType)) {
-            return toOdpsString(sqlObject);
-        }
-
-        return toSQLServerString(sqlObject);
+        String sql = out.toString();
+        return sql;
     }
 
     public static String toSQLString(SQLObject sqlObject) {
@@ -100,11 +94,11 @@ public class SQLUtils {
     }
 
     public static String toOdpsString(SQLObject sqlObject) {
-        StringBuilder out = new StringBuilder();
-        sqlObject.accept(new OdpsOutputVisitor(out));
-
-        String sql = out.toString();
-        return sql;
+        return toOdpsString(sqlObject, null);
+    }
+    
+    public static String toOdpsString(SQLObject sqlObject, FormatOption option) {
+        return toSQLString(sqlObject, JdbcConstants.ODPS, option);
     }
     
     public static String toMySqlString(SQLObject sqlObject) {
@@ -112,50 +106,39 @@ public class SQLUtils {
     }
 
     public static String toMySqlString(SQLObject sqlObject, FormatOption option) {
-        StringBuilder out = new StringBuilder();
-        MySqlOutputVisitor visitor = new MySqlOutputVisitor(out);
-        
-        if (option == null) {
-            option = DEFAULT_FORMAT_OPTION;
-        }
-        visitor.setUppCase(option.isUppCase());
-        
-        sqlObject.accept(visitor);
-
-        String sql = out.toString();
-        return sql;
+        return toSQLString(sqlObject, JdbcConstants.MYSQL, option);
     }
 
     public static SQLExpr toMySqlExpr(String sql) {
-        return toSQLExpr(sql, JdbcUtils.MYSQL);
+        return toSQLExpr(sql, JdbcConstants.MYSQL);
     }
 
     public static String formatMySql(String sql) {
-        return format(sql, JdbcUtils.MYSQL);
+        return format(sql, JdbcConstants.MYSQL);
     }
     
     public static String formatMySql(String sql, FormatOption option) {
-        return format(sql, JdbcUtils.MYSQL, option);
+        return format(sql, JdbcConstants.MYSQL, option);
     }
 
     public static String formatOracle(String sql) {
-        return format(sql, JdbcUtils.ORACLE);
+        return format(sql, JdbcConstants.ORACLE);
     }
     
     public static String formatOracle(String sql, FormatOption option) {
-        return format(sql, JdbcUtils.ORACLE, option);
+        return format(sql, JdbcConstants.ORACLE, option);
     }
 
     public static String formatOdps(String sql) {
-        return format(sql, JdbcUtils.ODPS);
+        return format(sql, JdbcConstants.ODPS);
     }
     
     public static String formatOdps(String sql, FormatOption option) {
-        return format(sql, JdbcUtils.ODPS, option);
+        return format(sql, JdbcConstants.ODPS, option);
     }
 
     public static String formatSQLServer(String sql) {
-        return format(sql, JdbcUtils.SQL_SERVER);
+        return format(sql, JdbcConstants.SQL_SERVER);
     }
 
     public static String toOracleString(SQLObject sqlObject) {
@@ -163,19 +146,7 @@ public class SQLUtils {
     }
     
     public static String toOracleString(SQLObject sqlObject, FormatOption option) {
-        StringBuilder out = new StringBuilder();
-        OracleOutputVisitor visitor = new OracleOutputVisitor(out, false);
-        
-        if (option == null) {
-            option = DEFAULT_FORMAT_OPTION;
-        }
-        
-        visitor.setUppCase(option.isUppCase());
-        
-        sqlObject.accept(visitor);
-
-        String sql = out.toString();
-        return sql;
+        return toSQLString(sqlObject, JdbcConstants.ORACLE, option);
     }
     
     public static String toPGString(SQLObject sqlObject) {
@@ -183,39 +154,35 @@ public class SQLUtils {
     }
 
     public static String toPGString(SQLObject sqlObject, FormatOption option) {
-        
-        StringBuilder out = new StringBuilder();
-        PGOutputVisitor visitor = new PGOutputVisitor(out);
-        
-        if (option == null) {
-            option = DEFAULT_FORMAT_OPTION;
-        }
-        visitor.setUppCase(option.isUppCase());
-        
-        sqlObject.accept(visitor);
-
-        String sql = out.toString();
-        return sql;
+        return toSQLString(sqlObject, JdbcConstants.POSTGRESQL, option);
     }
 
     public static String toDB2String(SQLObject sqlObject) {
-        StringBuilder out = new StringBuilder();
-        sqlObject.accept(new DB2OutputVisitor(out));
-
-        String sql = out.toString();
-        return sql;
+        return toDB2String(sqlObject, null);
+    }
+    
+    public static String toDB2String(SQLObject sqlObject, FormatOption option) {
+        return toSQLString(sqlObject, JdbcConstants.DB2, option);
     }
 
     public static String toSQLServerString(SQLObject sqlObject) {
-        StringBuilder out = new StringBuilder();
-        sqlObject.accept(new SQLServerOutputVisitor(out));
-
-        String sql = out.toString();
-        return sql;
+        return toSQLServerString(sqlObject, null);
+    }
+    
+    public static String toSQLServerString(SQLObject sqlObject, FormatOption option) {
+        return toSQLString(sqlObject, JdbcConstants.SQL_SERVER, option);
+    }
+    
+    public static String toTeradataString(SQLObject sqlObject) {
+        return toTeradataString(sqlObject, null);
+    }
+    
+    public static String toTeradataString(SQLObject sqlObject, FormatOption option) {
+        return toSQLString(sqlObject, JdbcConstants.TERADATA, option);
     }
 
     public static String formatPGSql(String sql, FormatOption option) {
-        return format(sql, JdbcUtils.POSTGRESQL, option);
+        return format(sql, JdbcConstants.POSTGRESQL, option);
     }
 
     public static SQLExpr toSQLExpr(String sql, String dbType) {
@@ -298,7 +265,11 @@ public class SQLUtils {
     }
 
     public static String toSQLString(List<SQLStatement> statementList, String dbType) {
-        return toSQLString(statementList, dbType, null);
+        return toSQLString(statementList, dbType, (List<Object>) null);
+    }
+    
+    public static String toSQLString(List<SQLStatement> statementList, String dbType, FormatOption option) {
+        return toSQLString(statementList, dbType, null, option);
     }
     
     public static String toSQLString(List<SQLStatement> statementList, String dbType, List<Object> parameters) {
@@ -374,37 +345,46 @@ public class SQLUtils {
 
         return out.toString();
     }
+    
+    public static SQLASTOutputVisitor createOutputVisitor(Appendable out, String dbType) {
+        return createFormatOutputVisitor(out, null, dbType);
+    }
 
-    public static SQLASTOutputVisitor createFormatOutputVisitor(Appendable out, List<SQLStatement> statementList,
+    public static SQLASTOutputVisitor createFormatOutputVisitor(Appendable out, // 
+                                                                List<SQLStatement> statementList, //
                                                                 String dbType) {
-        if (JdbcUtils.ORACLE.equals(dbType) || JdbcUtils.ALI_ORACLE.equals(dbType)) {
-            if (statementList.size() == 1) {
+        if (JdbcConstants.ORACLE.equals(dbType) || JdbcConstants.ALI_ORACLE.equals(dbType)) {
+            if (statementList == null || statementList.size() == 1) {
                 return new OracleOutputVisitor(out, false);
             } else {
                 return new OracleOutputVisitor(out, true);
             }
         }
 
-        if (JdbcUtils.MYSQL.equals(dbType) || //
-            JdbcUtils.MARIADB.equals(dbType) || //
-            JdbcUtils.H2.equals(dbType)) {
+        if (JdbcConstants.MYSQL.equals(dbType) //
+            || JdbcConstants.MARIADB.equals(dbType) //
+            || JdbcConstants.H2.equals(dbType)) {
             return new MySqlOutputVisitor(out);
         }
 
-        if (JdbcUtils.POSTGRESQL.equals(dbType)) {
+        if (JdbcConstants.POSTGRESQL.equals(dbType)) {
             return new PGOutputVisitor(out);
         }
 
-        if (JdbcUtils.SQL_SERVER.equals(dbType) || JdbcUtils.JTDS.equals(dbType)) {
+        if (JdbcConstants.SQL_SERVER.equals(dbType) || JdbcConstants.JTDS.equals(dbType)) {
             return new SQLServerOutputVisitor(out);
         }
 
-        if (JdbcUtils.DB2.equals(dbType)) {
+        if (JdbcConstants.DB2.equals(dbType)) {
             return new DB2OutputVisitor(out);
         }
 
-        if (JdbcUtils.ODPS.equals(dbType)) {
+        if (JdbcConstants.ODPS.equals(dbType)) {
             return new OdpsOutputVisitor(out);
+        }
+        
+        if (JdbcConstants.TERADATA.equals(dbType)) {
+            return new TeradataOutputVisitor(out);
         }
 
         return new SQLASTOutputVisitor(out);
@@ -416,30 +396,34 @@ public class SQLUtils {
     }
 
     public static SchemaStatVisitor createSchemaStatVisitor(String dbType) {
-        if (JdbcUtils.ORACLE.equals(dbType) || JdbcUtils.ALI_ORACLE.equals(dbType)) {
+        if (JdbcConstants.ORACLE.equals(dbType) || JdbcConstants.ALI_ORACLE.equals(dbType)) {
             return new OracleSchemaStatVisitor();
         }
 
-        if (JdbcUtils.MYSQL.equals(dbType) || //
-            JdbcUtils.MARIADB.equals(dbType) || //
-            JdbcUtils.H2.equals(dbType)) {
+        if (JdbcConstants.MYSQL.equals(dbType) || //
+            JdbcConstants.MARIADB.equals(dbType) || //
+            JdbcConstants.H2.equals(dbType)) {
             return new MySqlSchemaStatVisitor();
         }
 
-        if (JdbcUtils.POSTGRESQL.equals(dbType)) {
+        if (JdbcConstants.POSTGRESQL.equals(dbType)) {
             return new PGSchemaStatVisitor();
         }
 
-        if (JdbcUtils.SQL_SERVER.equals(dbType) || JdbcUtils.JTDS.equals(dbType)) {
+        if (JdbcConstants.SQL_SERVER.equals(dbType) || JdbcConstants.JTDS.equals(dbType)) {
             return new SQLServerSchemaStatVisitor();
         }
 
-        if (JdbcUtils.DB2.equals(dbType)) {
+        if (JdbcConstants.DB2.equals(dbType)) {
             return new DB2SchemaStatVisitor();
         }
         
-        if (JdbcUtils.ODPS.equals(dbType)) {
+        if (JdbcConstants.ODPS.equals(dbType)) {
             return new OdpsSchemaStatVisitor();
+        }
+        
+        if (JdbcConstants.TERADATA.equals(dbType)) {
+            return new TeradataSchemaStatVisitor();
         }
 
         return new SchemaStatVisitor();
@@ -680,3 +664,4 @@ public class SQLUtils {
         }
     }
 }
+

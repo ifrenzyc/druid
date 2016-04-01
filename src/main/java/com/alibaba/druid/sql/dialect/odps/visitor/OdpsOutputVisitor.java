@@ -31,7 +31,6 @@ import com.alibaba.druid.sql.ast.statement.SQLColumnDefinition;
 import com.alibaba.druid.sql.ast.statement.SQLCreateTableStatement;
 import com.alibaba.druid.sql.ast.statement.SQLJoinTableSource;
 import com.alibaba.druid.sql.ast.statement.SQLJoinTableSource.JoinType;
-import com.alibaba.druid.sql.ast.statement.SQLSelectGroupByClause;
 import com.alibaba.druid.sql.ast.statement.SQLSelectItem;
 import com.alibaba.druid.sql.ast.statement.SQLSubqueryTableSource;
 import com.alibaba.druid.sql.ast.statement.SQLTableElement;
@@ -42,6 +41,7 @@ import com.alibaba.druid.sql.dialect.odps.ast.OdpsDescStmt;
 import com.alibaba.druid.sql.dialect.odps.ast.OdpsGrantStmt;
 import com.alibaba.druid.sql.dialect.odps.ast.OdpsInsert;
 import com.alibaba.druid.sql.dialect.odps.ast.OdpsInsertStatement;
+import com.alibaba.druid.sql.dialect.odps.ast.OdpsLateralViewTableSource;
 import com.alibaba.druid.sql.dialect.odps.ast.OdpsListStmt;
 import com.alibaba.druid.sql.dialect.odps.ast.OdpsReadStatement;
 import com.alibaba.druid.sql.dialect.odps.ast.OdpsRemoveStatisticStatement;
@@ -71,6 +71,8 @@ public class OdpsOutputVisitor extends SQLASTOutputVisitor implements OdpsASTVis
         builtInFunctions.add("EXPLODE");
         builtInFunctions.add("LEAST");
         builtInFunctions.add("GREATEST");
+        
+        groupItemSingleLine = true;
     }
 
     public OdpsOutputVisitor(Appendable appender){
@@ -94,6 +96,12 @@ public class OdpsOutputVisitor extends SQLASTOutputVisitor implements OdpsASTVis
         int size = x.getTableElementList().size();
         if (size > 0) {
             print0(" (");
+            
+            if (this.isPrettyFormat() && x.hasBodyBeforeComment()) {
+                print(' ');
+                printComment(x.getBodyBeforeCommentsDirect(), "");
+            }
+            
             incrementIndent();
             println();
             for (int i = 0; i < size; ++i) {
@@ -271,28 +279,6 @@ public class OdpsOutputVisitor extends SQLASTOutputVisitor implements OdpsASTVis
         println();
         print0(ucase ? "END" : "end");
 
-        return false;
-    }
-
-    public boolean visit(SQLSelectGroupByClause x) {
-        int itemSize = x.getItems().size();
-        if (itemSize > 0) {
-            print0(ucase ? "GROUP BY " : "group by ");
-            incrementIndent();
-            for (int i = 0; i < itemSize; ++i) {
-                if (i != 0) {
-                    println(", ");
-                }
-                x.getItems().get(i).accept(this);
-            }
-            decrementIndent();
-        }
-
-        if (x.getHaving() != null) {
-            println();
-            print0(ucase ? "HAVING " : "having ");
-            x.getHaving().accept(this);
-        }
         return false;
     }
 
@@ -866,6 +852,26 @@ public class OdpsOutputVisitor extends SQLASTOutputVisitor implements OdpsASTVis
             printAndAccept(x.getPartition(), ", ");
             print(')');
         }
+        return false;
+    }
+
+    @Override
+    public void endVisit(OdpsLateralViewTableSource x) {
+        
+    }
+
+    @Override
+    public boolean visit(OdpsLateralViewTableSource x) {
+        x.getTableSource().accept(this);
+        incrementIndent();
+        println();
+        print0(ucase ? "LATERAL VIEW " : "lateral view ");
+        x.getMethod().accept(this);
+        print(' ');
+        print0(x.getAlias());
+        print0(ucase ? " AS " : " as ");
+        printAndAccept(x.getColumns(), ", ");
+        decrementIndent();
         return false;
     }
 }
